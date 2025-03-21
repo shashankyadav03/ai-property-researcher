@@ -1,0 +1,40 @@
+scraping_task:
+  name: Property Listing Collection
+  description: Scrape property listings from configured websites
+  assignee: scout_agent
+  dependencies: []
+  parameters:
+    websites:
+      - zillow
+      - realtor
+      - redfin
+    max_listings: 100
+    data_format: json
+
+analysis_task:
+  name: Property Evaluation
+  description: Analyze properties against user criteria
+  assignee: analyzer_agent
+  dependencies:
+    - scraping_task
+  parameters:
+    criteria:
+      - price_range
+      - location
+      - property_type
+      - investment_potential
+    output_format: detailed_report
+
+coordination_task:
+  name: Workflow Management
+  description: Coordinate agent activities and optimize search process
+  assignee: planner_agent
+  dependencies:
+    - scraping_task
+    - analysis_task
+  parameters:
+    optimization_metrics:
+      - time_efficiency
+      - data_quality
+      - search_coverage
+    update_interval: 300 

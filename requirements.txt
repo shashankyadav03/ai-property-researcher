@@ -1,0 +1,17 @@
+crewai
+crewai[tools]
+streamlit
+pandas
+numpy
+python-dotenv
+ollama
+requests
+beautifulsoup4
+folium
+streamlit-folium
+pyyaml
+unstructured
+python-dotenv
+geopy
+jsonschema
+langchain

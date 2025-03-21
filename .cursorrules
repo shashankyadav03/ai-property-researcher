@@ -1,0 +1,27 @@
+"""
+CursorRules for CrewAI Property Search Project
+Version: 1.0.0
+"""
+
+RULES = {
+  "file_structure": {
+    "MUST": [
+      "Place agent definitions in config/agents.yaml",
+      "Place task definitions in config/tasks.yaml",
+      "Define crew orchestration logic in crew.py",
+      "Store custom tools in tools/ directory",
+      "Keep main execution flow in main.py",
+      "Place Streamlit UI code in app.py",
+      "Store property data in data/properties.json"
+    ]
+  },
+  
+  "model_selection": {
+    "MUST": [
+      "Use gpt-4o-mini for basic tasks and simple interactions",
+      "Use gpt-4o for complex agentic tasks requiring deep reasoning",
+      "Set temperature=0.7 for creative tasks",
+      "Set temperature=0.1 for analytical tasks"
+    ]
+  }
+}
