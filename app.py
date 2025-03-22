@@ -1,42 +1,61 @@
 import streamlit as st
 import folium
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 import json
 import pandas as pd
 from crew import PropertyResearchCrew
 from typing import Dict, List
+import plotly.express as px
 
-def load_properties() -> List[Dict]:
+def load_properties() -> Dict:
     """Load properties from JSON database"""
     try:
         with open('data/properties.json', 'r') as f:
-            return json.load(f)
+            cache_data = json.load(f)
+            # Return the entire cache data structure
+            return cache_data if isinstance(cache_data, dict) else {"result": [], "search_criteria": {}, "timestamp": ""}
     except FileNotFoundError:
-        return []
+        return {"result": [], "search_criteria": {}, "timestamp": ""}
 
-def create_map(properties: List[Dict]):
-    """Create a folium map with property markers"""
-    # Initialize map centered on the first property or default location
-    if properties and 'location_analysis' in properties[0]:
-        center = [
-            properties[0]['location_analysis']['coordinates']['latitude'],
-            properties[0]['location_analysis']['coordinates']['longitude']
-        ]
-    else:
-        center = [37.7749, -122.4194]  # Default to San Francisco
+def create_map(properties_data):
+    if not properties_data or 'result' not in properties_data:
+        return folium.Map(location=[39.8283, -98.5795], zoom_start=4)
 
-    m = folium.Map(location=center, zoom_start=12)
+    # Find the property listings data (usually the second task output)
+    properties_list = None
+    for task_output in properties_data['result']:
+        if 'Scrape property listings' in task_output['description']:
+            # Parse the raw JSON string into a dictionary
+            try:
+                raw_json = task_output['raw'].strip('```json\n').strip('```')
+                listings_data = json.loads(raw_json)
+                properties_list = listings_data.get('properties', [])
+                break
+            except json.JSONDecodeError:
+                st.error("Failed to parse property listings data")
+                continue
 
+    if not properties_list:
+        return folium.Map(location=[39.8283, -98.5795], zoom_start=4)
+
+    # Create map centered on the US
+    m = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
+    
     # Add markers for each property
-    for prop in properties:
-        if 'location_analysis' in prop and 'coordinates' in prop['location_analysis']:
-            coords = prop['location_analysis']['coordinates']
-            folium.Marker(
-                [coords['latitude'], coords['longitude']],
-                popup=f"{prop.get('title', 'Property')}<br>Price: {prop.get('price', 'N/A')}",
-                icon=folium.Icon(color='red', icon='info-sign')
-            ).add_to(m)
-
+    for prop in properties_list:
+        location = prop.get('location', {})
+        price = prop.get('price', {}).get('amount', 'N/A')
+        title = prop.get('title', 'Property')
+        description = f"{title}<br>Price: ${price:,}<br>{location.get('city', '')}, {location.get('state', '')}"
+        
+        # You'll need to implement geocoding here to get lat/lng from address
+        # For now, using dummy coordinates
+        folium.Marker(
+            location=[39.8283, -98.5795],  # Replace with actual geocoded coordinates
+            popup=description,
+            icon=folium.Icon(color='red', icon='info-sign')
+        ).add_to(m)
+    
     return m
 
 def main():
@@ -83,43 +102,70 @@ def main():
         with tab1:
             st.subheader("Property Locations")
             m = create_map(properties)
-            folium_static(m)
+            st_folium(m, width=700, height=500)
         
         with tab2:
             st.subheader("Property List")
-            for prop in properties:
-                with st.expander(f"{prop.get('title', 'Property')} - {prop.get('price', 'N/A')}"):
-                    st.write(f"**Location:** {prop.get('location', 'N/A')}")
-                    st.write(f"**Match Score:** {prop.get('match_score', 'N/A')}")
-                    if 'features' in prop:
-                        st.write("**Features:**")
-                        for feature in prop['features']:
-                            st.write(f"- {feature}")
+            # Find the analysis data
+            analysis_data = None
+            for task_output in properties['result']:
+                if 'Analyze properties' in task_output['description']:
+                    try:
+                        raw_json = task_output['raw'].strip('```json\n').strip('```')
+                        analysis_data = json.loads(raw_json)
+                        break
+                    except json.JSONDecodeError:
+                        st.error("Failed to parse property analysis data")
+                        continue
+
+            if analysis_data and 'analysis' in analysis_data:
+                for prop in analysis_data['analysis']['properties']:
+                    with st.expander(f"{prop['address']} - ${prop['price']:,}"):
+                        st.write(f"**Address:** {prop['address']}")
+                        st.write(f"**Price:** ${prop['price']:,}")
+                        st.write(f"**Square Footage:** {prop['square_footage']}")
+                        st.write(f"**Bedrooms:** {prop['bedrooms']}")
+                        st.write(f"**Bathrooms:** {prop['bathrooms']}")
+                        
+                        # Investment return
+                        if 'investment_return' in prop:
+                            st.write("**Investment Return:**")
+                            inv = prop['investment_return']
+                            st.write(f"- Annual Growth Rate: {inv['annual_growth_rate']}%")
+                            st.write(f"- Expected Value in 5 Years: ${inv['expected_value_in_5_years']:,}")
+                        
+                        # Risks
+                        if 'risks' in prop:
+                            st.write("**Risks:**")
+                            for risk in prop['risks']:
+                                st.write(f"- {risk['type']}: {risk['description']}")
+            else:
+                st.info("No property analysis data available")
         
         with tab3:
             st.subheader("Market Analytics")
-            if properties:
-                df = pd.DataFrame(properties)
-                
-                # Price distribution
-                if 'price' in df.columns:
+            if analysis_data and 'analysis' in analysis_data:
+                # Market trends
+                if 'market_trends' in analysis_data['analysis']:
+                    trends = analysis_data['analysis']['market_trends']
+                    st.write("**Market Trends:**")
+                    st.write(f"- Current Demand: {trends['current_demand']}")
+                    st.write(f"- Forecasted Growth: {trends['forecasted_growth']}")
+                    
+                    if 'potential_opportunities' in trends:
+                        st.write("**Potential Opportunities:**")
+                        for opportunity in trends['potential_opportunities']:
+                            st.write(f"- {opportunity['type']}: {opportunity['description']}")
+
+                # Create DataFrame for visualization
+                props_df = pd.DataFrame(analysis_data['analysis']['properties'])
+                if not props_df.empty:
                     st.write("**Price Distribution**")
-                    st.bar_chart(df['price'])
-                
-                # Match score distribution
-                if 'match_score' in df.columns:
-                    st.write("**Match Score Distribution**")
-                    st.bar_chart(df['match_score'])
-                
-                # Location heat map
-                if 'location_analysis' in df.columns:
-                    st.write("**Location Analysis**")
-                    location_data = pd.DataFrame([
-                        p['location_analysis']['coordinates']
-                        for p in properties
-                        if 'location_analysis' in p and 'coordinates' in p['location_analysis']
-                    ])
-                    st.map(location_data)
+                    fig = px.histogram(props_df, x='price', title='Property Price Distribution')
+                    st.plotly_chart(fig)
+
+            else:
+                st.info("No market analytics data available")
     else:
         st.info("No properties found. Start a search to see results.")
 

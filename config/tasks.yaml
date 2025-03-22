@@ -1,33 +1,82 @@
-scraping_task:
-  name: Property Listing Collection
-  description: Scrape property listings from configured websites
-  assignee: scout_agent
+initialization_task:
+  name: Search Setup
+  description: "Initialize search parameters and validate user criteria"
+  assignee: planner_agent
   dependencies: []
   parameters:
+    validation_checks:
+      - price_range_validity
+      - location_validity
+      - search_criteria_completeness
+    setup_actions:
+      - configure_rate_limits
+      - initialize_cache
+      - setup_logging
+    output_format: json
+
+scraping_task:
+  name: Property Listing Collection
+  description: "Scrape property listings from configured websites with intelligent rate limiting"
+  assignee: scraper_agent
+  dependencies:
+    - initialization_task
+  parameters:
     websites:
-      - zillow
-      - realtor
-      - redfin
+      - name: zillow
+        base_url: "https://www.zillow.com"
+        priority: 1
+      - name: realtor
+        base_url: "https://www.realtor.com"
+        priority: 2
+      - name: redfin
+        base_url: "https://www.redfin.com"
+        priority: 3
     max_listings: 100
+    rate_limits:
+      requests_per_minute: 20
+      delay_between_requests: 2
+    retry_config:
+      max_retries: 3
+      backoff_factor: 2
+    parsing_options:
+      extract_images: true
+      extract_history: true
+      extract_amenities: true
     data_format: json
 
 analysis_task:
   name: Property Evaluation
-  description: Analyze properties against user criteria
+  description: "Analyze properties against user criteria and generate comprehensive insights"
   assignee: analyzer_agent
   dependencies:
     - scraping_task
   parameters:
     criteria:
-      - price_range
-      - location
-      - property_type
-      - investment_potential
+      price_range:
+        weight: 0.3
+        strict: true
+      location:
+        weight: 0.3
+        radius_miles: 20
+      property_type:
+        weight: 0.2
+        preferences:
+          - single_family
+          - townhouse
+          - condo
+      investment_potential:
+        weight: 0.2
+        metrics:
+          - price_trend
+          - market_comparison
+          - appreciation_potential
+    analysis_depth: comprehensive
     output_format: detailed_report
+    include_visualizations: true
 
 coordination_task:
   name: Workflow Management
-  description: Coordinate agent activities and optimize search process
+  description: "Coordinate agent activities and optimize the search process in real-time"
   assignee: planner_agent
   dependencies:
     - scraping_task
@@ -37,4 +86,36 @@ coordination_task:
       - time_efficiency
       - data_quality
       - search_coverage
-    update_interval: 300 
+      - result_relevance
+    monitoring:
+      check_interval: 60
+      metrics_threshold: 0.8
+    adaptation_rules:
+      - condition: "time_efficiency < 0.7"
+        action: "increase_parallel_requests"
+      - condition: "data_quality < 0.8"
+        action: "enhance_validation"
+    update_interval: 300
+
+results_task:
+  name: Results Compilation
+  description: "Compile and format final results for presentation"
+  assignee: analyzer_agent
+  dependencies:
+    - analysis_task
+    - coordination_task
+  parameters:
+    format_options:
+      include_maps: true
+      include_charts: true
+      include_recommendations: true
+    sorting_options:
+      primary_key: match_score
+      secondary_key: price
+    filtering_options:
+      min_match_score: 0.6
+      exclude_pending: true
+    output_formats:
+      - json
+      - html
+      - pdf 
